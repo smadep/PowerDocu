@@ -326,11 +326,21 @@ namespace PowerDocu.GUI
             };
             docOptionsInnerPanel.Controls.Add(desktopFlowsCheckBox);
 
+            // Classic Workflows Checkbox
+            classicWorkflowsCheckBox = new CheckBox()
+            {
+                Text = "Classic Workflows",
+                Location = new Point(convertToDPISpecific(15), desktopFlowsCheckBox.Location.Y + desktopFlowsCheckBox.Height + convertToDPISpecific(10)),
+                Checked = true,
+                AutoSize = true,
+            };
+            docOptionsInnerPanel.Controls.Add(classicWorkflowsCheckBox);
+
             // Apps Checkbox
             appsCheckBox = new CheckBox()
             {
                 Text = "Canvas Apps",
-                Location = new Point(convertToDPISpecific(15), desktopFlowsCheckBox.Location.Y + desktopFlowsCheckBox.Height + convertToDPISpecific(10)),
+                Location = new Point(convertToDPISpecific(15), classicWorkflowsCheckBox.Location.Y + classicWorkflowsCheckBox.Height + convertToDPISpecific(10)),
                 Checked = true,
                 AutoSize = true
             };
@@ -764,7 +774,7 @@ namespace PowerDocu.GUI
         private TextBox appStatusTextBox;
         private ComboBox outputFormatComboBox, flowActionSortOrderComboBox;
         private GroupBox outputFormatGroup, documentationOptionsGroup, otherOptionsGroup;
-        private CheckBox documentDefaultsCheckBox, documentSampleDataCheckBox, documentDefaultColumnsCheckBox, appPropertiesCheckBox, variablesCheckBox, dataSourcesCheckBox, resourcesCheckBox, controlsCheckBox, appsCheckBox, agentsCheckBox, modelDrivenAppsCheckBox, businessProcessFlowsCheckBox, desktopFlowsCheckBox, flowsCheckBox, solutionCheckBox, checkForUpdatesOnLaunchCheckBox, addTableOfContentsCheckBox, showAllComponentsInGraphCheckBox;
+        private CheckBox documentDefaultsCheckBox, documentSampleDataCheckBox, documentDefaultColumnsCheckBox, appPropertiesCheckBox, variablesCheckBox, dataSourcesCheckBox, resourcesCheckBox, controlsCheckBox, appsCheckBox, agentsCheckBox, modelDrivenAppsCheckBox, businessProcessFlowsCheckBox, desktopFlowsCheckBox, classicWorkflowsCheckBox, flowsCheckBox, solutionCheckBox, checkForUpdatesOnLaunchCheckBox, addTableOfContentsCheckBox, showAllComponentsInGraphCheckBox;
         private RadioButton documentChangesOnlyRadioButton, documentEverythingRadioButton;
         private Label wordTemplateInfoLabel, fileToParseInfoLabel, outputFormatInfoLabel,
                         flowActionSortOrderInfoLabel, newReleaseLabel, updateConnectorIconsLabel,

@@ -1,0 +1,17 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <ItemGroup>
+    <ProjectReference Include="..\modules\PowerDocu.Common\PowerDocu.Common\PowerDocu.Common.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Rubjerg.Graphviz" Version="3.0.4" />
+  </ItemGroup>
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <LangVersion>latest</LangVersion>
+    <DebugType>embedded</DebugType>
+  </PropertyGroup>
+
+</Project>

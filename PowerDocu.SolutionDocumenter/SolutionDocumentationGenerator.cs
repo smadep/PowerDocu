@@ -1,12 +1,14 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using PowerDocu.Common;
 using PowerDocu.AgentDocumenter;
 using PowerDocu.AIModelDocumenter;
 using PowerDocu.AppDocumenter;
 using PowerDocu.AppModuleDocumenter;
 using PowerDocu.BPFDocumenter;
+using PowerDocu.ClassicWorkflowDocumenter;
 using PowerDocu.DesktopFlowDocumenter;
 using PowerDocu.FlowDocumenter;
 
@@ -110,6 +112,41 @@ namespace PowerDocu.SolutionDocumenter
                     {
                         context.DesktopFlows = context.Customizations.getDesktopFlows() ?? new List<DesktopFlowEntity>();
                     }
+
+                    // Extract Classic Workflows from customizations (Category=0)
+                    if (config.documentClassicWorkflows)
+                    {
+                        context.ClassicWorkflows = context.Customizations.getClassicWorkflows() ?? new List<ClassicWorkflowEntity>();
+                        // Parse XAML files to populate steps
+                        if (solutionParser.solution.WorkflowXamlFiles != null)
+                        {
+                            foreach (ClassicWorkflowEntity workflow in context.ClassicWorkflows)
+                            {
+                                if (!string.IsNullOrEmpty(workflow.XamlFileName))
+                                {
+                                    string normalizedPath = workflow.XamlFileName.TrimStart('/');
+                                    foreach (var kvp in solutionParser.solution.WorkflowXamlFiles)
+                                    {
+                                        if (kvp.Key.Equals(normalizedPath, StringComparison.OrdinalIgnoreCase) ||
+                                            kvp.Key.EndsWith(System.IO.Path.GetFileName(normalizedPath), StringComparison.OrdinalIgnoreCase))
+                                        {
+                                            ClassicWorkflowXamlParser.ParseClassicWorkflowXaml(workflow, kvp.Value);
+                                            break;
+                                        }
+                                    }
+                                }
+                            }
+                        }
+
+                        // Enrich custom activity steps with metadata from PluginAssemblies
+                        // and resolve condition field references to display names
+                        _enrichContext = context;
+                        foreach (ClassicWorkflowEntity workflow in context.ClassicWorkflows)
+                        {
+                            EnrichCustomActivityMetadata(workflow.Steps, context.Customizations);
+                        }
+                        _enrichContext = null;
+                    }
                 }
             }
 
@@ -118,6 +155,7 @@ namespace PowerDocu.SolutionDocumenter
                 $"Phase 1 complete: {context.Flows.Count} flow(s), {context.Apps.Count} app(s), " +
                 $"{context.Agents.Count} agent(s), {context.AppModules.Count} app module(s), " +
                 $"{context.BusinessProcessFlows.Count} BPF(s), {context.DesktopFlows.Count} desktop flow(s), " +
+                $"{context.ClassicWorkflows.Count} classic workflow(s), " +
                 $"{context.Tables.Count} table(s), {context.Roles.Count} role(s)."
             );
 
@@ -133,6 +171,8 @@ namespace PowerDocu.SolutionDocumenter
                 progress.Register("BPFs", context.BusinessProcessFlows.Count);
             if (config.documentDesktopFlows && context.DesktopFlows.Count > 0)
                 progress.Register("DesktopFlows", context.DesktopFlows.Count);
+            if (config.documentClassicWorkflows && context.ClassicWorkflows.Count > 0)
+                progress.Register("Classic Workflows", context.ClassicWorkflows.Count);
             if (config.documentModelDrivenApps && context.AppModules.Count > 0)
                 progress.Register("Model-Driven Apps", context.AppModules.Count);
             int aiModelCount = context.Customizations?.getAIModels()?.Count ?? 0;
@@ -189,6 +229,12 @@ namespace PowerDocu.SolutionDocumenter
                 DesktopFlowDocumentationGenerator.GenerateOutput(context, solutionBasePath);
             }
 
+            // Generate Classic Workflow documentation
+            if (config.documentClassicWorkflows)
+            {
+                ClassicWorkflowDocumentationGenerator.GenerateOutput(context, solutionBasePath);
+            }
+
             // Generate solution-level documentation (solution overview, model-driven apps, Dataverse graph)
             if (config.documentSolution && context.Solution != null)
             {
@@ -202,12 +248,27 @@ namespace PowerDocu.SolutionDocumenter
 
                 // Generate solution overview documentation
                 SolutionDocumentationContent solutionContent = new SolutionDocumentationContent(context, solutionPath);
-                DataverseGraphBuilder dataverseGraphBuilder = new DataverseGraphBuilder(solutionContent);
+
+                try
+                {
+                    DataverseGraphBuilder dataverseGraphBuilder = new DataverseGraphBuilder(solutionContent);
+                }
+                catch (Exception ex)
+                {
+                    NotificationHelper.SendNotification("Warning: Could not generate Dataverse relationship graph: " + ex.Message);
+                }
 
                 // Generate solution component relationship graph
-                SolutionComponentGraphBuilder componentGraphBuilder = new SolutionComponentGraphBuilder(
-                    solutionContent, solutionPath, config.showAllComponentsInGraph);
-                componentGraphBuilder.Build();
+                try
+                {
+                    SolutionComponentGraphBuilder componentGraphBuilder = new SolutionComponentGraphBuilder(
+                        solutionContent, solutionPath, config.showAllComponentsInGraph);
+                    componentGraphBuilder.Build();
+                }
+                catch (Exception ex)
+                {
+                    NotificationHelper.SendNotification("Warning: Could not generate solution component graph: " + ex.Message);
+                }
 
                 if (fullDocumentation)
                 {
@@ -234,6 +295,192 @@ namespace PowerDocu.SolutionDocumenter
 
             DateTime endDocGeneration = DateTime.Now;
             NotificationHelper.SendNotification($"Documentation completed for {filePath}. Total time: {(endDocGeneration - startDocGeneration).TotalSeconds} seconds.");
+        }
+
+        private static void EnrichCustomActivityMetadata(List<ClassicWorkflowStep> steps, CustomizationsEntity customizations)
+        {
+            foreach (var step in steps)
+            {
+                if (step.StepType == ClassicWorkflowStepType.Custom && !string.IsNullOrEmpty(step.CustomActivityClass))
+                {
+                    var (friendlyName, description, groupName) = customizations.getWorkflowActivityMetadata(step.CustomActivityClass);
+                    step.CustomActivityFriendlyName = friendlyName;
+                    step.CustomActivityDescription = description;
+                    step.CustomActivityGroupName = groupName;
+                }
+
+                // Enrich condition tree field references with display names
+                if (step.ConditionTree != null)
+                {
+                    EnrichConditionFieldNames(step.ConditionTree);
+                    step.ConditionDescription = step.ConditionTree.ToFlatString();
+                }
+
+                // Enrich field assignment values
+                if (step.Fields.Count > 0)
+                {
+                    foreach (var field in step.Fields)
+                    {
+                        // Resolve option set integer values: "1" → "Active (1)"
+                        if (!string.IsNullOrEmpty(field.Value) && !string.IsNullOrEmpty(step.TargetEntity) &&
+                            field.Value.StartsWith("\"") && field.Value.EndsWith("\""))
+                        {
+                            string intVal = field.Value.Trim('"');
+                            if (int.TryParse(intVal, out _))
+                            {
+                                string resolved = ResolveOptionSetValues(step.TargetEntity, field.FieldName, field.Value);
+                                if (resolved != field.Value)
+                                    field.Value = resolved;
+                            }
+                        }
+
+                        // Resolve {entity.field} dynamic references to display names
+                        if (!string.IsNullOrEmpty(field.Value))
+                        {
+                            field.Value = ResolveEntityFieldReferences(field.Value);
+                        }
+
+                        // Resolve field logical name to display name for the field label itself
+                        if (!string.IsNullOrEmpty(field.FieldName) && !string.IsNullOrEmpty(step.TargetEntity))
+                        {
+                            string fieldDisplay = ResolveFieldDisplayName(step.TargetEntity, field.FieldName);
+                            if (fieldDisplay != field.FieldName)
+                                field.FieldName = fieldDisplay + " (" + field.FieldName + ")";
+                        }
+                    }
+                }
+
+                if (step.ChildSteps.Count > 0)
+                    EnrichCustomActivityMetadata(step.ChildSteps, customizations);
+            }
+        }
+
+        private static DocumentationContext _enrichContext;
+
+        private static void EnrichConditionFieldNames(ConditionExpression expr)
+        {
+            if (expr.IsLeaf && !string.IsNullOrEmpty(expr.Field))
+            {
+                // Parse "{entityName.fieldName}" format and resolve to display names
+                string field = expr.Field.Trim('{', '}');
+                int dotIdx = field.IndexOf('.');
+                string entityLogical = null;
+                string fieldLogical = null;
+                if (dotIdx > 0)
+                {
+                    entityLogical = field.Substring(0, dotIdx);
+                    // Strip " (Related)" suffix if present
+                    string cleanEntity = entityLogical.Replace(" (Related)", "");
+                    fieldLogical = field.Substring(dotIdx + 1);
+                    bool isRelated = entityLogical.Contains("(Related)");
+
+                    // Resolve display names
+                    string entityDisplay = _enrichContext?.GetTableDisplayName(cleanEntity) ?? cleanEntity;
+                    string fieldDisplay = ResolveFieldDisplayName(cleanEntity, fieldLogical);
+
+                    if (isRelated)
+                        expr.Field = fieldDisplay + " on " + entityDisplay + " (Related)";
+                    else
+                        expr.Field = fieldDisplay + " on " + entityDisplay;
+
+                    entityLogical = cleanEntity;
+                }
+
+                // Resolve option set values in the Value field
+                if (!string.IsNullOrEmpty(expr.Value) && !string.IsNullOrEmpty(entityLogical) && !string.IsNullOrEmpty(fieldLogical))
+                {
+                    expr.Value = ResolveOptionSetValues(entityLogical, fieldLogical, expr.Value);
+                }
+            }
+            else if (expr.IsGroup)
+            {
+                foreach (var child in expr.Children)
+                    EnrichConditionFieldNames(child);
+            }
+        }
+
+        private static string ResolveFieldDisplayName(string entityLogicalName, string fieldLogicalName)
+        {
+            if (_enrichContext?.Tables == null) return fieldLogicalName;
+            var table = _enrichContext.Tables.FirstOrDefault(t =>
+                t.getName().Equals(entityLogicalName, System.StringComparison.OrdinalIgnoreCase));
+            if (table == null) return fieldLogicalName;
+            var column = table.GetColumns().FirstOrDefault(c =>
+                c.getLogicalName().Equals(fieldLogicalName, System.StringComparison.OrdinalIgnoreCase));
+            if (column == null) return fieldLogicalName;
+            string displayName = column.getDisplayName();
+            if (!string.IsNullOrEmpty(displayName) && !displayName.Equals(fieldLogicalName, System.StringComparison.OrdinalIgnoreCase))
+                return displayName + " (" + fieldLogicalName + ")";
+            return fieldLogicalName;
+        }
+
+        private static string ResolveOptionSetValues(string entityLogicalName, string fieldLogicalName, string rawValue)
+        {
+            if (_enrichContext?.Tables == null) return rawValue;
+            var table = _enrichContext.Tables.FirstOrDefault(t =>
+                t.getName().Equals(entityLogicalName, System.StringComparison.OrdinalIgnoreCase));
+            if (table == null) return rawValue;
+            var column = table.GetColumns().FirstOrDefault(c =>
+                c.getLogicalName().Equals(fieldLogicalName, System.StringComparison.OrdinalIgnoreCase));
+            if (column == null) return rawValue;
+
+            // Value may be a single quoted value like "100000002" or comma-separated like "100000001", "100000002"
+            string[] parts = rawValue.Split(',');
+            var resolved = new List<string>();
+            foreach (string part in parts)
+            {
+                string trimmed = part.Trim().Trim('"');
+                string label = column.GetOptionSetLabel(trimmed);
+                if (!string.IsNullOrEmpty(label))
+                    resolved.Add(label + " (" + trimmed + ")");
+                else
+                    resolved.Add("\"" + trimmed + "\"");
+            }
+            return string.Join(", ", resolved);
+        }
+
+        /// <summary>
+        /// Resolves {entity.field} references in a value string to friendly display names.
+        /// Handles patterns like:
+        ///   {account.name} → Account Name (name) on Account (account)
+        ///   {systemuser (Related).address1_composite} → Address (address1_composite) on User (systemuser) (Related)
+        ///   {Process.Execution Time} → {Process.Execution Time} (unchanged)
+        ///   Concatenated: {account.name} + "literal" → resolved individually
+        /// </summary>
+        private static string ResolveEntityFieldReferences(string value)
+        {
+            if (string.IsNullOrEmpty(value) || _enrichContext?.Tables == null) return value;
+
+            // Match all {entity.field} patterns, including those with " (Related)" suffix
+            return System.Text.RegularExpressions.Regex.Replace(value,
+                @"\{([^}]+)\}",
+                match =>
+                {
+                    string inner = match.Groups[1].Value;
+
+                    // Skip system/process references like {Process.Execution Time}
+                    if (inner.StartsWith("Process.", System.StringComparison.OrdinalIgnoreCase))
+                        return match.Value;
+
+                    int dotIdx = inner.IndexOf('.');
+                    if (dotIdx <= 0) return match.Value;
+
+                    string entityPart = inner.Substring(0, dotIdx);
+                    string fieldPart = inner.Substring(dotIdx + 1);
+
+                    // Handle "(Related)" suffix
+                    bool isRelated = entityPart.Contains("(Related)");
+                    string cleanEntity = entityPart.Replace(" (Related)", "").Trim();
+
+                    // Resolve display names
+                    string entityDisplay = _enrichContext.GetTableDisplayName(cleanEntity);
+                    if (string.IsNullOrEmpty(entityDisplay)) entityDisplay = cleanEntity;
+
+                    string fieldDisplay = ResolveFieldDisplayName(cleanEntity, fieldPart);
+
+                    string relatedSuffix = isRelated ? " (Related)" : "";
+                    return fieldDisplay + " on " + entityDisplay + relatedSuffix;
+                });
         }
     }
 }
