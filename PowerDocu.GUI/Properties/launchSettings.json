@@ -1,0 +1,27 @@
+{
+  "profiles": {
+    "PowerDocu GUI": {
+      "commandName": "Project"
+    },
+    "PowerDocu CLI - MD": {
+      "commandName": "Project",
+      "commandLineArgs": "-f -q \"C:\\agent\\_work\\1\\a\\UNSSSLegitimationCardRequest.zip\"  -m -o \"C:\\agent\\_work\\1\\a\\output\\markdown\" "
+    },
+    "PowerDocu CLI - Word": {
+      "commandName": "Project",
+      "commandLineArgs": "-f -q \"C:\\agent\\_work\\1\\a\\UNSSSLegitimationCardRequest.zip\"  -w -o \"C:\\agent\\_work\\1\\a\\output\\word\" "
+    },
+    "PowerDocu CLI - MD - Cons": {
+      "commandName": "Project",
+      "commandLineArgs": "-f -q \"C:\\agent\\_work\\1\\a\\HRMSConsultantEngagementMain_1_75_0_18.zip\"  -m -o \"C:\\agent\\_work\\1\\a\\output\\markdown\" "
+    },
+    "PowerDocu CLI - Word ConsEng": {
+      "commandName": "Project",
+      "commandLineArgs": "-f -q \"C:\\agent\\_work\\1\\a\\HRMSConsultantEngagementMain_1_75_0_18.zip\"  -w -o \"C:\\agent\\_work\\1\\a\\output\\word\" "
+    },
+    "PowerDocu CLI - HTML TestALM": {
+      "commandName": "Project",
+      "commandLineArgs": "-f -q \"C:\\agent\\_work\\1\\a\\ASDTSybaseCustomConnector.zip\"  -h -o \"C:\\agent\\_work\\1\\a\\output\\html\" "
+    }
+  }
+}
