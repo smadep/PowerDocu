@@ -473,18 +473,20 @@ namespace PowerDocu.SolutionDocumenter
 
         private static void CollectDataflowRelationships(SolutionDocumentationContent content, List<ComponentRelationship> relationships)
         {
-            foreach (var dataflow in content.dataflows)
-            {
-                foreach (var query in dataflow.Queries)
-                {
-                    if (!string.IsNullOrEmpty(query.EntityName))
-                    {
-                        string tableName = content.context?.GetTableDisplayName(query.EntityName);
-                        if (string.IsNullOrEmpty(tableName)) tableName = query.EntityName;
-                        relationships.Add(new ComponentRelationship("Dataflow", dataflow.GetDisplayName(), "Table", tableName, "loads into"));
-                    }
-                }
-            }
+            //TODO: this is broken in main branch as content doesn't have dataFlows
+
+            //foreach (var dataflow in content.dataFlows)
+            //{
+            //    foreach (var query in dataflow.Queries)
+            //    {
+            //        if (!string.IsNullOrEmpty(query.EntityName))
+            //        {
+            //            string tableName = content.context?.GetTableDisplayName(query.EntityName);
+            //            if (string.IsNullOrEmpty(tableName)) tableName = query.EntityName;
+            //            relationships.Add(new ComponentRelationship("Dataflow", dataflow.GetDisplayName(), "Table", tableName, "loads into"));
+            //        }
+            //    }
+            //}
         }
 
         private static bool IsFlowDataSource(DataSource ds)
