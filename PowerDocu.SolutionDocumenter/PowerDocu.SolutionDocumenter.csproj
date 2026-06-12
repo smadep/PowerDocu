@@ -8,6 +8,7 @@
     <ProjectReference Include="..\PowerDocu.AppModuleDocumenter\PowerDocu.AppModuleDocumenter.csproj" />
     <ProjectReference Include="..\PowerDocu.AIModelDocumenter\PowerDocu.AIModelDocumenter.csproj" />
     <ProjectReference Include="..\PowerDocu.BPFDocumenter\PowerDocu.BPFDocumenter.csproj" />
+    <ProjectReference Include="..\PowerDocu.ClassicWorkflowDocumenter\PowerDocu.ClassicWorkflowDocumenter.csproj" />
     <ProjectReference Include="..\PowerDocu.DesktopFlowDocumenter\PowerDocu.DesktopFlowDocumenter.csproj" />
   </ItemGroup>
 

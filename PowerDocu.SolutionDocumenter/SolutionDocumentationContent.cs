@@ -13,6 +13,7 @@ namespace PowerDocu.SolutionDocumenter
         public List<AgentEntity> agents = new List<AgentEntity>();
         public List<BPFEntity> businessProcessFlows = new List<BPFEntity>();
         public List<DesktopFlowEntity> desktopFlows = new List<DesktopFlowEntity>();
+        public List<DataflowEntity> dataflows = new List<DataflowEntity>();
         public SolutionEntity solution;
         public DocumentationContext context;
         public string folderPath,
@@ -31,6 +32,7 @@ namespace PowerDocu.SolutionDocumenter
             this.agents = context.Agents ?? new List<AgentEntity>();
             this.businessProcessFlows = context.BusinessProcessFlows ?? new List<BPFEntity>();
             this.desktopFlows = context.DesktopFlows ?? new List<DesktopFlowEntity>();
+            this.dataflows = context.Dataflows ?? new List<DataflowEntity>();
             filename = CharsetHelper.GetSafeName(solution.UniqueName);
             folderPath = path;
         }
